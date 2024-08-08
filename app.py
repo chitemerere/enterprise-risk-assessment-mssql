@@ -15,9 +15,9 @@ import bcrypt
 from datetime import datetime
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
-import pymysql
 from sqlalchemy import create_engine, text
-import pyodbc
+import pymysql
+# import pyodbc
 import logging
 import io
 
@@ -31,7 +31,7 @@ def connect_to_db():
         host = st.secrets["host"]
         database = st.secrets["database"]
 
-        connection_string = f"mssql+pyodbc://{username}:{password}@{host}/{database}?driver=ODBC+Driver+17+for+SQL+Server"
+        connection_string = f"mssql+pymssql://{username}:{password}@{host}/{database}"
         engine = create_engine(connection_string)
         with engine.connect() as connection:
             result = connection.execute(text("SELECT 1"))
@@ -177,7 +177,7 @@ def get_risk_id_by_description(risk_description):
             risk_id = result.fetchone()
         engine.dispose()
         return risk_id[0] if risk_id else None
-    
+
 def fetch_risks_outside_appetite_from_risk_data(risk_appetite):
     engine = connect_to_db()
     if engine:
@@ -207,17 +207,17 @@ def insert_risks_into_risk_register(data):
                                    'inherent_risk_impact', 'inherent_risk_rating', 'control_owners', 
                                    'residual_risk_probability', 'residual_risk_impact', 'residual_risk_rating', 
                                    'controls']
-                
+
                 for record in data_list:
                     record = {k: v for k, v in record.items() if k in allowed_columns}
-                    
+
                     placeholders = ', '.join([f":{key}" for key in record.keys()])
                     columns = ', '.join(record.keys())
                     query = text(f"INSERT INTO risk_register ({columns}) VALUES ({placeholders})")
-                    
+
                     logging.info(f"Executing query: {query} with parameters: {record}")
                     connection.execute(query, record)
-                
+
                 transaction.commit()
                 logging.info(f"Inserted into risk_register: {data_list}")
             except Exception as e:
@@ -274,13 +274,13 @@ def delete_from_risk_register_by_risk_description(risk_description):
             engine.dispose()
     else:
         st.error("You do not have permission to delete risks.")
-        
+
 def register(username, password):
     engine = connect_to_db()
     if engine is None:
         logging.error("Failed to connect to the database.")
         return False
-    
+
     try:
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
         logging.debug(f"Hashed password for {username}: {hashed_password}")
@@ -300,7 +300,7 @@ def register(username, password):
         logging.error(f"Registration error for user {username}: {err}")
         st.sidebar.warning(f"Error: {err}")
         return False
-    
+
 # Initialize session state variables
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
@@ -310,17 +310,7 @@ if 'username' not in st.session_state:
 
 if 'user_role' not in st.session_state:
     st.session_state.user_role = ""
-    
-# Initialize session state variables
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
 
-if 'username' not in st.session_state:
-    st.session_state.username = ""
-
-if 'user_role' not in st.session_state:
-    st.session_state.user_role = ""
-    
 def login(username, password):
     logging.info(f"Attempting login for username: {username}")
     engine = connect_to_db()
@@ -382,7 +372,7 @@ def logout():
     for key in list(st.session_state.keys()):
         del st.session_state[key]
     st.session_state.logged_in = False
-    
+
 def change_password(username, current_password, new_password):
     logging.info(f"Initiating password change for user: {username}")
     engine = connect_to_db()
@@ -393,7 +383,7 @@ def change_password(username, current_password, new_password):
                 query = text("SELECT password FROM credentials WHERE username = :username")
                 result = connection.execute(query, {"username": username})
                 row = result.fetchone()
-                
+
                 if row:
                     stored_password = row[0]
                     logging.info(f"Stored password hash: {stored_password}")
@@ -432,16 +422,15 @@ def change_password(username, current_password, new_password):
         logging.error("Failed to connect to the database.")
         st.sidebar.error("Could not connect to the database.")
         return False
-    
+
 # def connect_to_db():
 #     try:
 #         username = st.secrets["username"]
 #         password = st.secrets["password"]
 #         host = st.secrets["host"]
 #         database = st.secrets["database"]
-#         ssl_ca = 'DigiCertGlobalRootCA.crt.pem'
 
-#         connection_string = f'mysql+pymysql://{username}:{password}@{host}/{database}?ssl_ca={ssl_ca}'
+#         connection_string = f"mssql+pyodbc://{username}:{password}@{host}/{database}?driver=ODBC+Driver+17+for+SQL+Server"
 #         engine = create_engine(connection_string)
 #         with engine.connect() as connection:
 #             result = connection.execute(text("SELECT 1"))
@@ -452,7 +441,7 @@ def change_password(username, current_password, new_password):
 #         st.sidebar.warning(f"Error: {err}")
 #         logging.error(f"Database connection error: {err}")
 #         return None
-  
+
 # def fetch_risk_register_from_db():
 #     engine = connect_to_db()
 #     if engine:
@@ -466,7 +455,7 @@ def change_password(username, current_password, new_password):
 #     engine = connect_to_db()
 #     if engine:
 #         with engine.connect() as connection:
-#             result = connection.execute(text("DESCRIBE risk_data"))
+#             result = connection.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'risk_data'"))
 #             columns = [row[0] for row in result.fetchall()]
 #         engine.dispose()
 #         return columns
@@ -510,7 +499,7 @@ def change_password(username, current_password, new_password):
 #             transaction = connection.begin()
 #             try:
 #                 placeholders = ', '.join([':{}'.format(key) for key in data.keys()])
-#                 columns = ', '.join([f"`{key}`" for key in data.keys()])
+#                 columns = ', '.join([f"[{key}]" for key in data.keys()])
 #                 query = text(f"INSERT INTO risk_data ({columns}) VALUES ({placeholders})")
 #                 connection.execute(query, data)
 #                 transaction.commit()
@@ -537,7 +526,7 @@ def change_password(username, current_password, new_password):
 #             with engine.connect() as connection:
 #                 transaction = connection.begin()
 #                 try:
-#                     query = text("DELETE FROM risk_data WHERE TRIM(risk_description) = :risk_description")
+#                     query = text("DELETE FROM risk_data WHERE LTRIM(RTRIM(risk_description)) = :risk_description")
 #                     result = connection.execute(query, {"risk_description": risk_description})
 #                     transaction.commit()
 #                     if result.rowcount > 0:
@@ -578,12 +567,11 @@ def change_password(username, current_password, new_password):
 #     else:
 #         st.error("You do not have permission to update risks.")
 
-
 # def get_risk_id_by_description(risk_description):
 #     engine = connect_to_db()
 #     if engine:
 #         with engine.connect() as connection:
-#             query = text("SELECT id FROM risk_data WHERE TRIM(risk_description) = :risk_description")
+#             query = text("SELECT id FROM risk_data WHERE LTRIM(RTRIM(risk_description)) = :risk_description")
 #             result = connection.execute(query, {"risk_description": risk_description})
 #             risk_id = result.fetchone()
 #         engine.dispose()
@@ -593,10 +581,8 @@ def change_password(username, current_password, new_password):
 #     engine = connect_to_db()
 #     if engine:
 #         with engine.connect() as connection:
-#             # Use a parameterized query for a list of values
 #             placeholders = ', '.join([f":rating_{i}" for i in range(len(risk_appetite))])
 #             query = text(f"SELECT * FROM risk_data WHERE residual_risk_rating NOT IN ({placeholders})")
-#             # Create a dictionary with unique parameter names for each rating
 #             params = {f"rating_{i}": rating for i, rating in enumerate(risk_appetite)}
 #             result = connection.execute(query, params)
 #             data = pd.DataFrame(result.fetchall(), columns=result.keys())
@@ -845,6 +831,7 @@ def change_password(username, current_password, new_password):
 #         logging.error("Failed to connect to the database.")
 #         st.sidebar.error("Could not connect to the database.")
 #         return False
+
 
 def main():
     st.image("logo.png", width=200)
