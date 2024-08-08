@@ -26,12 +26,12 @@ logging.basicConfig(filename='application.log', level=logging.INFO)
 
 def connect_to_db():
     try:
+        server = st.secrets["server"]
         username = st.secrets["username"]
         password = st.secrets["password"]
-        host = st.secrets["host"]
         database = st.secrets["database"]
 
-        connection_string = f"mssql+pymssql://{username}:{password}@{host}/{database}"
+        connection_string = f"mssql+pymssql://{username}:{password}@{server}:1433/{database}?encrypt=true&trustservercertificate=false"
         engine = create_engine(connection_string)
         with engine.connect() as connection:
             result = connection.execute(text("SELECT 1"))
@@ -42,6 +42,25 @@ def connect_to_db():
         st.sidebar.warning(f"Error: {err}")
         logging.error(f"Database connection error: {err}")
         return None
+
+# def connect_to_db():
+#     try:
+#         username = st.secrets["username"]
+#         password = st.secrets["password"]
+#         host = st.secrets["host"]
+#         database = st.secrets["database"]
+
+#         connection_string = f"mssql+pymssql://{username}:{password}@{host}/{database}"
+#         engine = create_engine(connection_string)
+#         with engine.connect() as connection:
+#             result = connection.execute(text("SELECT 1"))
+#             result.fetchone()
+
+#         return engine
+#     except Exception as err:
+#         st.sidebar.warning(f"Error: {err}")
+#         logging.error(f"Database connection error: {err}")
+#         return None
 
 def fetch_risk_register_from_db():
     engine = connect_to_db()
